@@ -159,7 +159,8 @@ class Response():
             elif sub_type == 'html':
                 base_dir = BASE_DIR+"www/"
             else:
-                handle_text_other(sub_type)
+                #handle_text_other(sub_type) ##Hien tai chi xu li cac loai file nay
+                raise ValueError("Invalid type: sub_type={}".format(sub_type))
         elif main_type == 'image':
             base_dir = BASE_DIR+"static/"
             self.headers['Content-Type']='image/{}'.format(sub_type)
@@ -201,6 +202,21 @@ class Response():
             #  TODO: implement the step of fetch the object file
             #        store in the return value of content
             #
+        if not os.path.exists(filepath):
+            return 0, b""
+        else:
+            ##########Doc file text/ app ###################
+            if "text" in self.headers["Content-Type"] or "application" in self.headers["Content-Type"]:
+                with open(filepath, mode="r", encoding= "utf-8") as obj_file:
+                    content = obj_file.read().encode("utf-8")
+                    obj_file.close()
+            ########### Doc file  image ###################
+            elif "image" in self.headers["Content-Type"]:
+                with open(filepath, mode="rb") as obj_file:
+                    content = obj_file.read()
+                    obj_file.close()
+            else:
+                return 0, b""
         return len(content), content
 
 
@@ -242,6 +258,12 @@ class Response():
             #  TODO: implement the header building to create formated
             #        header from the provied headers
             #
+            ##############Add here#####################
+        fmt_header = "HTTP/1.1 200 OK\r\n" ############## De tam tinh sau ##############
+        for key, val in headers.items():
+            fmt_header += "{}: {}\r\n".format(key,val)
+
+        fmt_header += "\r\n"
         #
         # TODO prepare the request authentication
         #
@@ -289,6 +311,14 @@ class Response():
             base_dir = self.prepare_content_type(mime_type = 'text/html')
         elif mime_type == 'text/css':
             base_dir = self.prepare_content_type(mime_type = 'text/css')
+        #######################add here######################
+        elif mime_type.startswith('image') or mime_type.startswith('application'):
+            try:
+                base_dir = self.prepare_content_type(mime_type)
+            except ValueError as e:
+                print(f"[Response] Error Content Type: {e}")
+                return self.build_notfound()
+        #######################################################
         #
         # TODO: add support objects
         #

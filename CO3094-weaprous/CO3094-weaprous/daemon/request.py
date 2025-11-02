@@ -65,6 +65,8 @@ class Request():
         self.routes = {}
         #: Hook point for routed mapped-path
         self.hook = None
+        ##############: Add self.version   ################
+        self.version = None
 
     def extract_request_line(self, request):
         try:
@@ -75,7 +77,7 @@ class Request():
             if path == '/':
                 path = '/index.html'
         except Exception:
-            return None, None, None
+            return None, None
 
         return method, path, version
              
@@ -103,7 +105,7 @@ class Request():
         # TODO manage the webapp hook in this mounting point
         #
         
-        if routes: #aka routes is not None and routes != {}:
+        if not routes == {}:
             self.routes = routes
             self.hook = routes.get((self.method, self.path))
             #
@@ -116,11 +118,31 @@ class Request():
             #
             #  TODO: implement the cookie function here
             #        by parsing the header            #
-
+            ###############Da hoan thanh ################
+        self.cookies = {}
+        if cookies:
+            for cookie in cookies.split(';'):
+                cookie = cookie.strip()
+                if '=' in cookie:
+                    key, val = cookie.split('=',1)
+                    self.cookies[key.lower()] = val
         return
 
     def prepare_body(self, data, files, json=None):
-        self.prepare_content_length(self.body)
+        ##########-----Add here-----####################
+        body = ""
+        if json is not None:
+            import json
+            body = json.dumps(json)
+        elif data is not None:
+            if isinstance(data,dict):
+                from urllib.parse import urlencode
+                body = urlencode(data)
+        else:
+            body = str(data)
+            #Tam bo qua file
+        ###################################
+        self.prepare_content_length(body)
         self.body = body
         #
         # TODO prepare the request authentication
@@ -131,6 +153,9 @@ class Request():
 
     def prepare_content_length(self, body):
         self.headers["Content-Length"] = "0"
+        ###############--Add here----############
+        self.headers["Content-Length"] = str(len(body.encode("utf-8")))
+        ##################################
         #
         # TODO prepare the request authentication
         #
