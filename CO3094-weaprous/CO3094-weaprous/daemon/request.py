@@ -19,6 +19,11 @@ request settings (cookies, auth, proxies).
 """
 from .dictionary import CaseInsensitiveDict
 
+############ add import###########
+from urllib.parse import urlencode
+import json as jsonlib
+import base64
+
 class Request():
     """The fully mutable "class" `Request <Request>` object,
     containing the exact bytes that will be sent to the server.
@@ -67,6 +72,7 @@ class Request():
         self.hook = None
         ##############: Add self.version   ################
         self.version = None
+        self.auth = None
 
     def extract_request_line(self, request):
         try:
@@ -77,7 +83,7 @@ class Request():
             if path == '/':
                 path = '/index.html'
         except Exception:
-            return None, None
+            return None, None, None
 
         return method, path, version
              
@@ -118,6 +124,8 @@ class Request():
             #
             #  TODO: implement the cookie function here
             #        by parsing the header            #
+            #############Body######################
+        self.body = self._extract_body(request)
             ###############Da hoan thanh ################
         self.cookies = {}
         if cookies:
@@ -126,17 +134,15 @@ class Request():
                 if '=' in cookie:
                     key, val = cookie.split('=',1)
                     self.cookies[key.lower()] = val
-        return
+        return self
 
     def prepare_body(self, data, files, json=None):
         ##########-----Add here-----####################
         body = ""
         if json is not None:
-            import json
             body = json.dumps(json)
         elif data is not None:
             if isinstance(data,dict):
-                from urllib.parse import urlencode
                 body = urlencode(data)
         else:
             body = str(data)
@@ -154,7 +160,16 @@ class Request():
     def prepare_content_length(self, body):
         self.headers["Content-Length"] = "0"
         ###############--Add here----############
-        self.headers["Content-Length"] = str(len(body.encode("utf-8")))
+        if body is None:
+            length = 0
+        elif isinstance(body, str):
+            length = len(body.encode("utf-8"))
+        elif isinstance(body, dict):
+            length = len(jsonlib.dumps(body).encode("utf-8"))
+        else:
+            length = len(str(body).encode("utf-8"))
+
+        self.headers["Content-Length"] = str(length)
         ##################################
         #
         # TODO prepare the request authentication
@@ -172,3 +187,46 @@ class Request():
 
     def prepare_cookies(self, cookies):
             self.headers["Cookie"] = cookies
+
+    def _extract_body(self, request):
+        """
+        Extract and parse body from raw HTTP request.
+        
+        :param request: Raw HTTP request string
+        :return: Parsed body (dict for JSON/form, string for plain text, or None)
+        """
+        # Find the end of headers (double CRLF)
+        try:
+            header_end = request.index('\r\n\r\n')
+            raw_body = request[header_end + 4:].strip()
+        except ValueError:
+            # No body found
+            return None
+        
+        # If no body content
+        if not raw_body:
+            return None
+        
+        # Get Content-Type to determine how to parse
+        content_type = self.headers.get('content-type', '').lower()
+        
+        # Parse based on Content-Type
+        if 'application/json' in content_type:
+            try:
+                return jsonlib.loads(raw_body)
+            except jsonlib.JSONDecodeError as e:
+                print(f"[Request] JSON parse error: {e}")
+                return raw_body
+        
+        elif 'application/x-www-form-urlencoded' in content_type:
+        # Parse form data: username=admin&password=password
+            body_dict = {}
+            for pair in raw_body.split('&'):
+                if '=' in pair:
+                    key, value = pair.split('=', 1)
+                    body_dict[key] = value
+            return body_dict
+        
+        else:
+            # Plain text or unknown type
+            return raw_body

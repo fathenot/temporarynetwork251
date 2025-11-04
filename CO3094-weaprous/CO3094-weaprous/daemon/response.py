@@ -231,7 +231,25 @@ class Response():
         """
         reqhdr = request.headers
         rsphdr = self.headers
+        ###################handle status code####################
+        if self.status_code is None:
+            self.status_code = 200
+        
+        # Map status codes to reason phrases
+        status_messages = {
+            200: "OK",
+            401: "Unauthorized",
+            404: "Not Found",
+            500: "Internal Server Error"
+        }
+        status_text = status_messages.get(self.status_code, "Unknown")
+        ##################################################
+        ##################### Set cookie ##################
 
+
+
+
+        #####################################################
         #Build dynamic headers
         headers = {
                 "Accept": "{}".format(reqhdr.get("Accept", "application/json")),
@@ -252,14 +270,16 @@ class Response():
                 "Warning": "199 Miscellaneous warning",
                 "User-Agent": "{}".format(reqhdr.get("User-Agent", "Chrome/123.0.0.0")),
             }
-
+        if hasattr(self, '_set_cookies') and self._set_cookies:
+            for cookie_name, cookie_value in self._set_cookies.items():
+                headers["Set-Cookie"] = "{}={}; Path=/; HttpOnly".format(cookie_name, cookie_value)
         # Header text alignment
             #
             #  TODO: implement the header building to create formated
             #        header from the provied headers
             #
             ##############Add here#####################
-        fmt_header = "HTTP/1.1 200 OK\r\n" ############## De tam tinh sau ##############
+        fmt_header = "HTTP/1.1 {} {}\r\n".format(self.status_code, status_text) ############## De tam tinh sau ##############
         for key, val in headers.items():
             fmt_header += "{}: {}\r\n".format(key,val)
 
@@ -270,7 +290,18 @@ class Response():
 	# self.auth = ...
         return str(fmt_header).encode('utf-8')
 
-
+    #################Add helper###################
+    def set_cookie(self, name, value):
+        """
+        Set a cookie to be sent in the response.
+        
+        :param name: Cookie name
+        :param value: Cookie value
+        """
+        if not hasattr(self, '_set_cookies'):
+            self._set_cookies = {}
+        self._set_cookies[name] = value
+        ####################################
     def build_notfound(self):
         """
         Constructs a standard 404 Not Found HTTP response.
@@ -288,7 +319,21 @@ class Response():
                 "\r\n"
                 "404 Not Found"
             ).encode('utf-8')
-
+    def build_unauthorized(self):
+        """
+        Constructs a standard 401 Unauthorized HTTP response.
+        Used when authentication fails or auth cookie is missing.
+        """
+        
+        return (
+            "HTTP/1.1 401 Unauthorized\r\n"
+            "Content-Type: text/html\r\n"
+            "Content-Length: 13\r\n"
+            "Cache-Control: no-cache\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            "401 Unauthorized"
+        ).encode('utf-8')
 
     def build_response(self, request):
         """

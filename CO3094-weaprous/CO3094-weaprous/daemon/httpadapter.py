@@ -114,12 +114,70 @@ class HttpAdapter:
             # TODO: handle for App hook here
             #
 
+        # ============================================================
+        # TASK 1A: Authentication Handling
+        # ============================================================
+        
+        # Check if this is POST /login request
+        if req.method == "POST" and req.path == "/login":
+            print("[HttpAdapter] Handling POST /login - Authentication")
+            
+            # Validate credentials
+            if req.body and isinstance(req.body, dict):
+                username = req.body.get('username', '')
+                password = req.body.get('password', '')
+                
+                print(f"[HttpAdapter] Login attempt - username: {username}")
+                
+                # Check credentials: username=admin, password=password
+                if username == 'admin' and password == 'password':
+                    print("[HttpAdapter] Login successful - Setting auth cookie")
+                    
+                    # Valid credentials - serve index page with auth cookie
+                    resp.status_code = 200
+                    resp.set_cookie('auth', 'true')
+                    
+                    # Change path to index to serve the page
+                    req.path = '/index.html'
+                    response = resp.build_response(req)
+                else:
+                    print("[HttpAdapter] Login failed - Invalid credentials")
+                    
+                    # Invalid credentials - return 401
+                    response = resp.build_unauthorized()
+            else:
+                print("[HttpAdapter] Login failed - No body or invalid format")
+                # No body or invalid format
+                response = resp.build_unauthorized()
+        
+        # ============================================================
+        # TASK 1B: Cookie-based Access Control
+        # ============================================================
+        
+        # Check if this is GET request to protected resource
+        elif req.method == "GET" and req.path in ["/", "/index.html"]:
+            print(f"[HttpAdapter] Handling GET {req.path}")
+            
+            # Check for auth cookie
+            if req.cookies and req.cookies.get('auth') == 'true':
+                print("[HttpAdapter] Auth cookie valid - Serving content")
+                
+                # Cookie is valid - serve the requested page
+                resp.status_code = 200
+                response = resp.build_response(req)
+            else:
+                print("[HttpAdapter] Auth cookie missing/invalid - Unauthorized")
+                
+                # No valid auth cookie - return 401
+                response = resp.build_unauthorized()
         # Build response
-        response = resp.build_response(req)
+        else: 
+            response = resp.build_response(req)
 
         #print(response)
         conn.sendall(response)
         conn.close()
+        return
 
     @property
     def extract_cookies(self, req, resp):
@@ -131,7 +189,7 @@ class HttpAdapter:
         :rtype: cookies - A dictionary of cookie key-value pairs.
         """
         cookies = {}
-        for header in headers:
+        for header in req.headers:                 #Da sua tu headers thanh req.headers
             if header.startswith("Cookie:"):
                 cookie_str = header.split(":", 1)[1].strip()
                 for pair in cookie_str.split(";"):
@@ -150,7 +208,7 @@ class HttpAdapter:
 
         # Set encoding.
         response.encoding = get_encoding_from_headers(response.headers)
-        response.raw = resp
+        response.raw = resp                         #?????????
         response.reason = response.raw.reason
 
         if isinstance(req.url, bytes):
@@ -159,7 +217,7 @@ class HttpAdapter:
             response.url = req.url
 
         # Add new cookies from the server.
-        response.cookies = extract_cookies(req)
+        response.cookies = self.extract_cookies(req)
 
         # Give the Response some context.
         response.request = req
