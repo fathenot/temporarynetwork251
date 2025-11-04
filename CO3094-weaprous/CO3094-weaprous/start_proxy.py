@@ -39,7 +39,7 @@ import socket
 import threading
 import argparse
 import re
-from urlparse import urlparse
+from  urllib.parse import urlparse
 from collections import defaultdict
 
 from daemon import create_proxy
@@ -65,6 +65,7 @@ def parse_virtual_hosts(config_file):
 
     routes = {}
     for host, block in host_blocks:
+        
         proxy_map = {}
 
         # Find all proxy_pass entries
@@ -122,5 +123,5 @@ if __name__ == "__main__":
     port = args.server_port
 
     routes = parse_virtual_hosts("config/proxy.conf")
-
+    print("route create success fully")
     create_proxy(ip, port, routes)
