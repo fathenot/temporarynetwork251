@@ -78,6 +78,13 @@ def forward_request(host, port, request):
         ).encode('utf-8')
 
 
+############### HANDLE ROUTING POLICY #################
+round_robin_counters = {}
+# Bộ đếm connection đang active trên mỗi backend (hostname -> {backend: count})
+conn_counters = {}
+
+# Mutex để bảo vệ truy cập đồng thời
+lock = threading.Lock()
 def resolve_routing_policy(hostname, routes):
     """
     Handles an routing policy to return the matching proxy_pass.
@@ -107,9 +114,20 @@ def resolve_routing_policy(hostname, routes):
             proxy_port = '9000'
         elif len(proxy_map) == 1:
             proxy_host, proxy_port = proxy_map[0].split(":", 2)
-        #elif: # apply the policy handling 
-        #   proxy_map
-        #   policy
+        elif len(proxy_map) > 1: # apply the policy handling 
+            if policy == 'round-robin':
+                idx = round_robin_counters.get(hostname, 0)
+                selected = proxy_map[idx % len(proxy_map)]
+                round_robin_counters[hostname] = (idx + 1) % len(proxy_map)
+                proxy_host, proxy_port = selected.split(":", 1)
+                print(f"[Policy] Round-robin selected {selected} for {hostname}")
+            if policy == 'least-conn':
+                conn_counters.setdefault(hostname, {backend: 0 for backend in proxy_map})
+                # Chọn backend có ít connection nhất
+                selected = min(conn_counters[hostname], key=lambda b: conn_counters[hostname][b])
+                conn_counters[hostname][selected] += 1
+                proxy_host, proxy_port = selected.split(":", 1)
+                print(f"[Policy] Least-connection selected {selected} for {hostname}")
         else:
             # Out-of-handle mapped host
             proxy_host = '127.0.0.1'
@@ -170,6 +188,9 @@ def handle_client(ip, port, conn, addr, routes):
         ).encode('utf-8')
     conn.sendall(response)
     conn.close()
+    if hostname in conn_counters and resolved_host in conn_counters[hostname]:
+        conn_counters[hostname][resolved_host] = max(0, conn_counters[hostname][resolved_host] - 1)
+        print(f"[Policy] Connection closed: {resolved_host} (-1)")
 
 def run_proxy(ip, port, routes):
     """

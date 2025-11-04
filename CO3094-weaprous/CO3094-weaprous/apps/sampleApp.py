@@ -1,11 +1,11 @@
 # Example usage
 import json
 
-from daemon import 
-
+from daemon import weaprous
 
 def create_sampleapp():
-app = WeApRous()
+    return weaprous.WeApRous()
+app = create_sampleapp()
 
 @app.route("/", methods=["GET"])
 def home(_):

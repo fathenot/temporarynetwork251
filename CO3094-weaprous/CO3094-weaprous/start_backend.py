@@ -28,7 +28,7 @@ import argparse
 from daemon import create_backend
 
 # Default port number used if none is specified via command-line arguments.
-PORT = 9000 
+PORT = 8080 
 
 if __name__ == "__main__":
     """
@@ -49,7 +49,7 @@ if __name__ == "__main__":
     )
     parser.add_argument('--server-ip',
         type=str,
-        default='0.0.0.0',
+        default='127.0.0.1',
         help='IP address to bind the server. Default is 0.0.0.0'
     )
     parser.add_argument(
