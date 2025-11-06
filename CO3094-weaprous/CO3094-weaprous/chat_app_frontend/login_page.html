@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Login Page</title>
+  <style>
+    :root {
+      --bg: #0f1724;
+      --card: #0b1220;
+      --accent: #4f46e5;
+      --muted: #9aa4b2;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      height: 100%; margin: 0; background: linear-gradient(180deg, #071027 0%, #071b2b 100%); color: #e6eef6;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .card {
+      background: var(--card);
+      padding: 40px;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 8px 30px rgba(2,6,23,0.6);
+    }
+    .title {
+      text-align: center;
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 24px;
+    }
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid rgba(255,255,255,0.04);
+      border-radius: 8px;
+      background: rgba(255,255,255,0.02);
+      color: white;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+    input:focus {
+      outline: none;
+      border-color: var(--accent);
+      background: rgba(255,255,255,0.05);
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      background: linear-gradient(90deg, var(--accent), #06b6d4);
+      color: white;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { opacity: 0.9; }
+    .footer {
+      margin-top: 16px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="card" role="main" aria-label="Login form">
+    <div class="title">Sign in to Chat</div>
+    <form id="loginForm" autocomplete="off">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" placeholder="Enter your username" required />
+
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" placeholder="Enter your password" required />
+
+      <button type="submit">Login</button>
+    </form>
+    <div class="footer">
+      Don’t have an account? <a href="#" id="register">Register</a>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('loginForm');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value.trim();
+
+      if (!username || !password) {
+        alert('Please fill out all fields.');
+        return;
+      }
+
+      try {
+        const res = await fetch(`http://localhost:5000/login}`, {
+          method: 'GET',
+          headers: username
+		  body: password
+        });
+
+        if (!res.ok) throw new Error('Network error');
+
+        const data = await res.json();
+        console.log('Response:', data); // tiện debug
+
+        if (data.success) {
+          alert('Login successful!');
+          window.location.href = 'chat.html';
+        } else {
+          alert('Login failed: ' + (data.message || 'Invalid credentials'));
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    });
+  </script>
+</body>
+</html>
