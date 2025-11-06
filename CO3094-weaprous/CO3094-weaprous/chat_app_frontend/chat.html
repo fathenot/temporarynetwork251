@@ -1,161 +1,278 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Simple Chat UI</title>
-  <style>
-    :root{
-      --bg:#0f1724;
-      --card:#0b1220;
-      --muted:#9aa4b2;
-      --accent:#4f46e5;
-      --msg-in:#0ea5a4;
-      --msg-out:#1f2937;
-      --glass: rgba(255,255,255,0.04);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%;margin:0;background:linear-gradient(180deg,#071027 0%, #071b2b 100%);color:#e6eef6}
-    .app{
-      max-width:960px;margin:28px auto;padding:20px;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));box-shadow:0 8px 30px rgba(2,6,23,0.6);
-      display:grid;grid-template-columns:320px 1fr;gap:18px;min-height:560px;align-items:stretch
-    }
-    /* Sidebar */
-    .sidebar{background:var(--card);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:12px}
-    .brand{display:flex;align-items:center;gap:10px}
-    .logo{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#06b6d4);display:flex;align-items:center;justify-content:center;font-weight:700}
-    .conversations{overflow:auto;padding-right:6px}
-    .conv{padding:10px;border-radius:8px;cursor:pointer;display:flex;gap:8px;align-items:center}
-    .conv:hover{background:var(--glass)}
-    .conv.active{background:linear-gradient(90deg, rgba(79,70,229,0.12), rgba(6,182,212,0.06))}
-    .avatar{width:36px;height:36px;border-radius:8px;background:#12202b;display:flex;align-items:center;justify-content:center;color:var(--muted);font-weight:600}
-    .meta{display:flex;flex-direction:column}
-    .meta .title{font-weight:600}
-    .meta .sub{font-size:12px;color:var(--muted)}
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Real Chat UI</title>
+<style>
+  :root {
+    --bg: #0e1621;
+    --panel: #1a2433;
+    --bubble-in: #202c3b;
+    --bubble-out: #0078ff;
+    --muted: #a1acb9;
+    --accent: #0078ff;
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: #fff; }
 
-    /* Chat area */
-    .chat-card{background:var(--card);border-radius:10px;padding:14px;display:flex;flex-direction:column;min-height:520px}
-    .header{display:flex;align-items:center;justify-content:space-between;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.03)}
-    .header .title{display:flex;gap:12px;align-items:center}
-    .messages{flex:1;overflow:auto;padding:18px 6px;display:flex;flex-direction:column;gap:10px}
-    .message{max-width:70%;padding:10px 12px;border-radius:12px;line-height:1.3}
-    .out{align-self:flex-end;background:linear-gradient(180deg,var(--accent), #06b6d4);color:white;border-bottom-right-radius:4px}
-    .in{align-self:flex-start;background:var(--msg-out);color:#e6eef6;border-bottom-left-radius:4px}
-    .meta-small{font-size:11px;color:var(--muted);margin-top:6px}
+  .app {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    height: 100vh;
+    background: var(--panel);
+    border: 1px solid rgba(255,255,255,0.05);
+  }
 
-    .composer{display:flex;gap:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.03);align-items:center}
-    textarea{resize:none;min-height:46px;max-height:160px;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit;font-size:14px;flex:1}
-    button{background:linear-gradient(90deg,var(--accent),#06b6d4);border:none;padding:12px 14px;border-radius:10px;color:white;font-weight:600;cursor:pointer}
-    .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);padding:8px;border-radius:8px;color:var(--muted);cursor:pointer}
-    .typing{font-size:13px;color:var(--muted);padding-left:6px}
+  /* Sidebar */
+  .sidebar {
+    background: #151e2b;
+    border-right: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    flex-direction: column;
+  }
 
-    /* Responsive */
-    @media (max-width:880px){.app{grid-template-columns:1fr;min-height:680px}.sidebar{order:2}.chat-card{order:1}}
-  </style>
+  .sidebar-header {
+    padding: 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    font-weight: 700;
+    font-size: 18px;
+  }
+
+  .users {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .user-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .user-item:hover {
+    background: rgba(255,255,255,0.05);
+  }
+  .user-item.active {
+    background: rgba(0,120,255,0.15);
+  }
+  .avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: #2a3a4f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+  }
+  .username { font-weight: 600; }
+
+  /* Chat area */
+  .chat {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .chat-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--panel);
+  }
+
+  .message {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    max-width: 75%;
+    animation: fadeIn 0.2s ease;
+  }
+  .message.in { align-self: flex-start; }
+  .message.out { align-self: flex-end; flex-direction: row-reverse; }
+
+  .bubble {
+    padding: 10px 14px;
+    border-radius: 18px;
+    font-size: 15px;
+    line-height: 1.4;
+    word-wrap: break-word;
+  }
+  .in .bubble {
+    background: var(--bubble-in);
+    border-bottom-left-radius: 4px;
+  }
+  .out .bubble {
+    background: var(--bubble-out);
+    border-bottom-right-radius: 4px;
+  }
+  .time {
+    font-size: 11px;
+    color: var(--muted);
+    margin: 2px 6px;
+  }
+
+  .composer {
+    display: flex;
+    padding: 10px 14px;
+    gap: 10px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    background: rgba(0,0,0,0.15);
+  }
+
+  textarea {
+    flex: 1;
+    resize: none;
+    background: rgba(255,255,255,0.05);
+    border: none;
+    border-radius: 20px;
+    color: #fff;
+    padding: 10px 14px;
+    font-size: 15px;
+    outline: none;
+  }
+
+  button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 46px;
+    height: 46px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  button:hover { background: #3399ff; }
+
+  .typing {
+    font-size: 13px;
+    color: var(--muted);
+    padding: 4px 10px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 10px;
+    align-self: flex-start;
+    animation: blink 1.2s infinite;
+  }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px);} to { opacity: 1; transform: translateY(0);} }
+  @keyframes blink { 50% { opacity: 0.4; } }
+</style>
 </head>
 <body>
-  <main class="app" role="application" aria-label="Chat application">
-    <aside class="sidebar" aria-label="Conversations list">
-      <div class="brand"><div class="logo">C</div><div><div style="font-weight:700">Chat Demo</div><div style="font-size:12px;color:var(--muted)">Lightweight UI</div></div></div>
-      <div style="display:flex;gap:8px">
-        <button class="btn-ghost" id="newConv">+ New</button>
-        <button class="btn-ghost" id="clearAll">Clear</button>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar-header">Contacts</div>
+    <div class="users" id="userList">
+      <div class="user-item active" data-id="1">
+        <div class="avatar">AI</div>
+        <div class="username">Assistant</div>
       </div>
-      <div class="conversations" id="conversations" role="list" aria-label="Saved conversations">
-        <div class="conv active" data-id="1" role="listitem"><div class="avatar">AI</div><div class="meta"><div class="title">General</div><div class="sub">A demo conversation</div></div></div>
+      <div class="user-item" data-id="2">
+        <div class="avatar">JD</div>
+        <div class="username">John Doe</div>
       </div>
-      <div style="margin-top:auto;font-size:12px;color:var(--muted)">Recommendation: use WebSocket for production.</div>
-    </aside>
+    </div>
+  </aside>
 
-    <section class="chat-card" aria-label="Chat panel">
-      <div class="header">
-        <div class="title"><div class="avatar">AI</div><div style="display:flex;flex-direction:column"><div style="font-weight:700">Assistant</div><div style="font-size:12px;color:var(--muted)">Online</div></div></div>
-        <div style="display:flex;gap:8px;align-items:center"><button class="btn-ghost" id="export">Export</button></div>
-      </div>
+  <section class="chat">
+    <div class="chat-header">
+      <div id="chatWith">Assistant</div>
+    </div>
 
-      <div class="messages" id="messages" aria-live="polite"></div>
+    <div class="messages" id="messages"></div>
 
-      <div class="composer" role="region" aria-label="Message composer">
-        <textarea id="input" placeholder="Type your message (Shift+Enter for newline)..." aria-label="Message input"></textarea>
-        <button id="send">Send</button>
-      </div>
-    </section>
-  </main>
+    <div class="composer">
+      <textarea id="input" placeholder="Type a message..."></textarea>
+      <button id="send">➤</button>
+    </div>
+  </section>
+</div>
 
-  <script>
-    // Simple, clear, production-minded client-side UI.
-    // Opinion: for anything beyond a prototype, don't use polling; use WebSocket or HTTP/2 server push.
+<script>
+const messagesEl = document.getElementById('messages');
+const inputEl = document.getElementById('input');
+const sendBtn = document.getElementById('send');
+const userList = document.getElementById('userList');
+const chatWith = document.getElementById('chatWith');
 
-    const messagesEl = document.getElementById('messages');
-    const inputEl = document.getElementById('input');
-    const sendBtn = document.getElementById('send');
-    const conversationsEl = document.getElementById('conversations');
+function escapeHtml(s){return s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')}
 
-    function createMessageNode(text, who='in', small=''){
-      const wrap = document.createElement('div');
-      wrap.className = 'message ' + (who === 'out' ? 'out' : 'in');
-      wrap.innerHTML = `<div>${escapeHtml(text)}</div>` + (small ? `<div class="meta-small">${escapeHtml(small)}</div>` : '');
-      return wrap;
-    }
+function createMessage(text, who='in') {
+  const msg = document.createElement('div');
+  msg.className = 'message ' + who;
+  msg.innerHTML = `<div class="bubble">${escapeHtml(text)}</div><div class="time">${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>`;
+  return msg;
+}
 
-    function escapeHtml(s){return s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')}
+function appendMessage(text, who='in') {
+  const node = createMessage(text, who);
+  messagesEl.appendChild(node);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
 
-    function appendMessage(text, who='in', small=''){
-      const node = createMessageNode(text, who, small);
-      messagesEl.appendChild(node);
-      messagesEl.scrollTop = messagesEl.scrollHeight - messagesEl.clientHeight;
-    }
+function mockReply(userText) {
+  const typing = document.createElement('div');
+  typing.className = 'typing';
+  typing.textContent = `${chatWith.textContent} is typing...`;
+  messagesEl.appendChild(typing);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return new Promise(resolve => {
+    setTimeout(() => {
+      messagesEl.removeChild(typing);
+      let reply = "Hmm, interesting.";
+      if(userText.toLowerCase().includes("hi")) reply = "Hello there 👋";
+      if(userText.toLowerCase().includes("how are")) reply = "I'm fine, thanks!";
+      if(userText.toLowerCase().includes("bye")) reply = "Goodbye!";
+      appendMessage(reply, 'in');
+      resolve(reply);
+    }, 900 + Math.random()*600);
+  });
+}
 
-    function mockReply(userText){
-      // Simulate thinking delay.
-      const typing = document.createElement('div');
-      typing.className = 'typing';
-      typing.textContent = 'Assistant is typing...';
-      messagesEl.appendChild(typing);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
-      return new Promise(resolve => setTimeout(()=>{
-        messagesEl.removeChild(typing);
-        const reply = `Echo: ${userText}`;
-        appendMessage(reply, 'in', new Date().toLocaleTimeString());
-        resolve(reply);
-      }, 700 + Math.random()*700));
-    }
+sendBtn.addEventListener('click', async ()=>{
+  const text = inputEl.value.trim();
+  if(!text) return;
+  appendMessage(text, 'out');
+  inputEl.value = '';
+  inputEl.focus();
+  try { await mockReply(text); } catch { appendMessage('Error: failed to send message', 'in'); }
+});
 
-    sendBtn.addEventListener('click', async ()=>{
-      const text = inputEl.value.trim();
-      if(!text) return;
-      appendMessage(text, 'out', new Date().toLocaleTimeString());
-      inputEl.value = '';
-      inputEl.focus();
-      try{ await mockReply(text); } catch(e){ appendMessage('Error: reply failed', 'in'); }
-    });
+inputEl.addEventListener('keydown', e => {
+  if(e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendBtn.click();
+  }
+});
 
-    inputEl.addEventListener('keydown', (e)=>{
-      if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendBtn.click(); }
-    });
+userList.addEventListener('click', e => {
+  const item = e.target.closest('.user-item');
+  if(!item) return;
+  document.querySelectorAll('.user-item').forEach(n => n.classList.remove('active'));
+  item.classList.add('active');
+  chatWith.textContent = item.querySelector('.username').textContent;
+  messagesEl.innerHTML = '';
+  appendMessage(`Now chatting with ${chatWith.textContent}`, 'in');
+});
 
-    // Small helpers for conversation management
-    document.getElementById('clearAll').addEventListener('click', ()=>{ if(confirm('Clear messages?')) messagesEl.innerHTML=''; });
-    document.getElementById('newConv').addEventListener('click', ()=>{
-      const id = Date.now();
-      const node = document.createElement('div'); node.className='conv'; node.dataset.id = id; node.role='listitem'; node.innerHTML = '<div class="avatar">U</div><div class="meta"><div class="title">Conversation '+id+'</div><div class="sub">New</div></div>';
-      conversationsEl.appendChild(node);
-      // in a real app, you would persist and load the conversation state
-    });
-
-    document.getElementById('export').addEventListener('click', ()=>{
-      const rows = Array.from(messagesEl.querySelectorAll('.message')).map(m=>({who: m.classList.contains('out')? 'user':'assistant', text: m.firstChild.textContent, time: (m.querySelector('.meta-small') ? m.querySelector('.meta-small').textContent : '')}));
-      const blob = new Blob([JSON.stringify(rows, null, 2)], {type:'application/json'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href=url; a.download='conversation.json'; a.click(); URL.revokeObjectURL(url);
-    });
-
-    // Initialize with a welcome message (good UX)
-    appendMessage('Welcome. This is a simple offline demo UI. For production integrate WebSocket or server API.', 'in');
-
-    // Accessibility: focus composer when page loads
-    inputEl.focus();
-  </script>
+appendMessage("Hey! I'm your assistant. How can I help?", 'in');
+inputEl.focus();
+</script>
 </body>
 </html>
