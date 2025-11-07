@@ -23,6 +23,9 @@ Request and Response objects to handle client-server communication.
 from .request import Request
 from .response import Response
 from .dictionary import CaseInsensitiveDict
+import uuid, time
+SESSION_STORE = {}  # session_id -> {'username': ..., 'created_at': ...}
+SESSION_TIMEOUT = 1800  # 30 phút
 
 class HttpAdapter:
     """
@@ -153,8 +156,13 @@ class HttpAdapter:
                     
                     # Valid credentials - serve index page with auth cookie
                     resp.status_code = 200
-                    resp.set_cookie('auth', 'true')
-                    
+                    # Tạo session ID duy nhất
+                    session_id = str(uuid.uuid4())
+                    SESSION_STORE[session_id] = {
+                        'username': username,
+                        'created_at': time.time()
+                    }
+                    resp.set_cookie('session_id', session_id)
                     # Change path to index to serve the page
                     req.path = '/index.html'
                     response = resp.build_response(req)
@@ -177,20 +185,30 @@ class HttpAdapter:
             print(f"[HttpAdapter] Handling GET {req.path}")
             
             # Check for auth cookie
-            if req.cookies and req.cookies.get('auth') == 'true':
-                print("[HttpAdapter] Auth cookie valid - Serving content")
-                
-                # Cookie is valid - serve the requested page
-                resp.status_code = 200
-                response = resp.build_response(req)
+            session_id = None
+            if req.cookies:
+                session_id = req.cookies.get('session_id')
+
+            # Kiểm tra session_id có hợp lệ không
+            if session_id and session_id in SESSION_STORE:
+                session = SESSION_STORE[session_id]
+                # Kiểm tra timeout
+                if time.time() - session['created_at'] < SESSION_TIMEOUT:
+                    print("[HttpAdapter] Session valid - Serving content")
+                    resp.status_code = 200
+                    response = resp.build_response(req)
+                else:
+                    print("[HttpAdapter] Session expired - Unauthorized")
+                    del SESSION_STORE[session_id]
+                    response = resp.build_unauthorized()
             else:
                 print("[HttpAdapter] Auth cookie missing/invalid - Unauthorized")
                 
                 # No valid auth cookie - return 401
                 response = resp.build_unauthorized()
         # Build response
-        # else: 
-        #     response = resp.build_response(req)
+        else: 
+            response = resp.build_response(req)
 
         #print(response)
         conn.sendall(response)
