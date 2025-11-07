@@ -109,11 +109,29 @@ class HttpAdapter:
         # Handle request hook
         if req.hook:
             print("[HttpAdapter] hook in route-path METHOD {} PATH {}".format(req.hook._route_path,req.hook._route_methods))
-            req.hook(headers = "bksysnet",body = "get in touch")
+            result = req.hook(headers = req.headers,body = req.body) ###################### Fix here to handle hook
             #
             # TODO: handle for App hook here
             #
+            if isinstance(result, dict):
+                import json
+                body = json.dumps(result).encode("utf-8")
+                resp.status_code = 200
+                resp.headers["Content-Type"] = "application/json"
+                resp._content = body
 
+                header = resp.build_response_header(req)
+                response = header + body
+
+            # Nếu route trả chuỗi → trả text/plain
+            elif isinstance(result, str):
+                body = result.encode("utf-8")
+                resp.status_code = 200
+                resp.headers["Content-Type"] = "text/plain"
+                resp._content = body
+
+                header = resp.build_response_header(req)
+                response = header + body
         # ============================================================
         # TASK 1A: Authentication Handling
         # ============================================================
@@ -171,8 +189,8 @@ class HttpAdapter:
                 # No valid auth cookie - return 401
                 response = resp.build_unauthorized()
         # Build response
-        else: 
-            response = resp.build_response(req)
+        # else: 
+        #     response = resp.build_response(req)
 
         #print(response)
         conn.sendall(response)
