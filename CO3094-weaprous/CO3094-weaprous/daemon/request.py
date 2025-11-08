@@ -140,7 +140,7 @@ class Request():
         ##########-----Add here-----####################
         body = ""
         if json is not None:
-            body = json.dumps(json)
+            body = jsonlib.dumps(json)
         elif data is not None:
             if isinstance(data,dict):
                 body = urlencode(data)
