@@ -36,7 +36,9 @@ app = WeApRous()
 
 peers = []
 channels = []
-
+users = {
+    "admin": "password"
+}
 @app.route('/login', methods=['POST'])
 def login(headers="guest", body="anonymous"):
     """
@@ -52,7 +54,7 @@ def login(headers="guest", body="anonymous"):
     username = body.get('username','')
     password = body.get('password','')
     print("[Tracker] Login attempt: {}".format(username))
-    if username == "admin" and password == "password":
+    if username in users and users[username] == password:
         return {"auth": True, "message": "Login success"}
     else:
         return {"auth": False, "message": "Invalid credentials"}
@@ -73,7 +75,7 @@ def submit_info(headers, body):
 def get_list(headers, body):
     ################# Get peer list ##################
     print("[Tracker] Get peer list")
-    return {"peer":peers}
+    return {"peers":peers}
 
 @app.route('/add-list', methods=['POST'])
 def add_list(headers, body):
@@ -83,22 +85,149 @@ def add_list(headers, body):
     print ("[Tracker] Register new peer: {}".format(body))
     return {"message": "Success"}
 
+# ==================== CHANNEL MANAGEMENT ====================
+
 @app.route('/add-channel', methods=['POST'])
 def add_channel(headers, body):
-    ################### Add new channel #####################
-    if "name" not in body:
-        return {"message": "Failed", "error": "Missing channel name"}
-    
-    if not any(c["name"] == body["name"] for c in channels):
-        channels.append(body)
-        print(f"[Tracker] New channel: {body['name']}")
-        return {"message": "Success"}
-    return {"message": "Channel already exists"}
+    """Create new channel"""
+    try:
+        if "name" not in body:
+            return {"success": False, "message": "Missing channel name"}
+        
+        channel_name = body["name"]
+        
+        # Check if channel exists
+        if any(c["name"] == channel_name for c in channels):
+            return {"success": False, "message": "Channel already exists"}
+        
+        # Create channel
+        new_channel = {
+            "name": channel_name,
+            "members": [],
+            "created_by": body.get("created_by", "anonymous"),
+            "description": body.get("description", "")
+        }
+        
+        channels.append(new_channel)
+        print(f"[Tracker] New channel created: {channel_name}")
+        
+        return {"success": True, "message": "Channel created", "channel": new_channel}
+        
+    except Exception as e:
+        print(f"[Tracker] Error creating channel: {e}")
+        return {"success": False, "message": str(e)}
 
 @app.route('/get-channels', methods=['GET'])
 def get_channels(headers, body):
-    ######################### get channel list #################
-    return {"channels": channels}
+    """Get all channels"""
+    print(f"[Tracker] Get channels - {len(channels)} channels")
+    return {"success": True, "channels": channels}
+
+@app.route('/join-channel', methods=['POST'])
+def join_channel(headers, body):
+    """Join a channel"""
+    try:
+        channel_name = body.get("channel")
+        peer_id = body.get("peer_id")  # Format: "ip:port"
+        username = body.get("username", "Anonymous")
+        
+        if not channel_name or not peer_id:
+            return {"success": False, "message": "Missing channel or peer_id"}
+        
+        # Find channel
+        channel = None
+        for c in channels:
+            if c["name"] == channel_name:
+                channel = c
+                break
+        
+        if not channel:
+            return {"success": False, "message": "Channel not found"}
+        
+        # Check if already member
+        if any(m["peer_id"] == peer_id for m in channel["members"]):
+            return {"success": False, "message": "Already a member"}
+        
+        # Add member
+        member = {
+            "peer_id": peer_id,
+            "username": username
+        }
+        channel["members"].append(member)
+        
+        print(f"[Tracker] {username} joined channel: {channel_name}")
+        
+        return {
+            "success": True,
+            "message": f"Joined {channel_name}",
+            "members": channel["members"]
+        }
+        
+    except Exception as e:
+        print(f"[Tracker] Error joining channel: {e}")
+        return {"success": False, "message": str(e)}
+
+@app.route('/leave-channel', methods=['POST'])
+def leave_channel(headers, body):
+    """Leave a channel"""
+    try:
+        channel_name = body.get("channel")
+        peer_id = body.get("peer_id")
+        
+        if not channel_name or not peer_id:
+            return {"success": False, "message": "Missing channel or peer_id"}
+        
+        # Find channel
+        channel = None
+        for c in channels:
+            if c["name"] == channel_name:
+                channel = c
+                break
+        
+        if not channel:
+            return {"success": False, "message": "Channel not found"}
+        
+        # Remove member
+        channel["members"] = [m for m in channel["members"] if m["peer_id"] != peer_id]
+        
+        print(f"[Tracker] Peer {peer_id} left channel: {channel_name}")
+        
+        return {"success": True, "message": f"Left {channel_name}"}
+        
+    except Exception as e:
+        print(f"[Tracker] Error leaving channel: {e}")
+        return {"success": False, "message": str(e)}
+
+@app.route('/get-channel-members', methods=['POST'])
+def get_channel_members(headers, body):
+    """Get members of a specific channel"""
+    try:
+        channel_name = body.get("channel")
+        
+        if not channel_name:
+            return {"success": False, "message": "Missing channel name"}
+        
+        # Find channel
+        channel = None
+        for c in channels:
+            if c["name"] == channel_name:
+                channel = c
+                break
+        
+        if not channel:
+            return {"success": False, "message": "Channel not found"}
+        
+        print(f"[Tracker] Get members of {channel_name} - {len(channel['members'])} members")
+        
+        return {
+            "success": True,
+            "channel": channel_name,
+            "members": channel["members"]
+        }
+        
+    except Exception as e:
+        print(f"[Tracker] Error getting members: {e}")
+        return {"success": False, "message": str(e)}
 
 if __name__ == "__main__":
     # Parse command-line arguments to configure server IP and port
