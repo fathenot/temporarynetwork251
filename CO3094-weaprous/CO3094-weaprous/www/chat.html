@@ -706,27 +706,63 @@
             pollTimer = setTimeout(pollMessages, POLL_INTERVAL);
         }
 
-        function processIncomingMessage(msg) {
-            // Determine which chat this message belongs to
-            const chatId = msg.channel || msg.from_peer_id;       //Wait for fix
+    //     function processIncomingMessage(msg) {
+    //         // Determine which chat this message belongs to
+    //         const chatId = msg.channel || msg.from_peer_id;       //Wait for fix
+    // //         const chatId = msg.channel || 
+    // // (msg.from_peer_id === myPeerId ? msg.to_peer_id : msg.from_peer_id);
 
-            // Add to UI if we're viewing this chat
+    //         // Add to UI if we're viewing this chat
+    //         if (currentChat && currentChat.target === chatId) {
+    //             addMessageToUI({
+    //                 sender: msg.from,
+    //                 message: msg.message,
+    //                 type: msg.type,
+    //                 time: new Date(msg.timestamp),
+    //                 own: false
+    //             });
+    //         }
+
+    //         // Show notification if not current chat
+    //         if (!currentChat || currentChat.target !== chatId) {
+    //             showNotification(`New message from ${msg.from}`);
+    //             // Could add unread badge here
+    //         }
+    //     }
+
+        function processIncomingMessage(msg) {
+            let chatId;
+            if (msg.from_peer_id === myPeerId) {
+                // Bỏ qua vì đã hiển thị khi gửi
+                return;
+            }
+            if (msg.channel && msg.from_peer_id === myPeerId) {
+                // Bỏ qua vì đã hiển thị khi gửi
+                return;
+            }
+            if (msg.channel) {
+                chatId = msg.channel;
+            } else if (msg.type === 'direct') {
+                // Nếu mình là người gửi thì chatId = người nhận
+                // Nếu mình là người nhận thì chatId = người gửi
+                chatId = (msg.from_peer_id === myPeerId) ? msg.to_peer_id : msg.from_peer_id;
+            }
+
             if (currentChat && currentChat.target === chatId) {
                 addMessageToUI({
                     sender: msg.from,
                     message: msg.message,
                     type: msg.type,
                     time: new Date(msg.timestamp),
-                    own: false
+                    own: (msg.from_peer_id === myPeerId)
                 });
-            }
-
-            // Show notification if not current chat
-            if (!currentChat || currentChat.target !== chatId) {
+            } else {
                 showNotification(`New message from ${msg.from}`);
-                // Could add unread badge here
             }
         }
+
+
+
 
         function updateConnectionStatus(isConnected) {
             const statusEl = document.getElementById('connectionStatus');
