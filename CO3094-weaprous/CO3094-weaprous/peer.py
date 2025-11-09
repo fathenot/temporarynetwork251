@@ -35,6 +35,14 @@ from daemon.weaprous import WeApRous
 from daemon.request import Request
 from daemon.response import Response
 
+import queue
+import datetime
+
+# Message queue để lưu messages nhận được
+message_queue = queue.Queue()
+# Message history cho mỗi chat
+chat_history = {}  # {chat_id: [messages]}
+
 PORT = 8000  # Default port
 P2P_PORT = 5000
 
@@ -143,9 +151,29 @@ def handle_peer_messages(sock, peer_id):
                 msg_type = msg_data.get('type', 'chat')
                 from_user = msg_data.get('from', 'Unknown')
                 content = msg_data.get('message', '')
+                channel = msg_data.get('channel', None)
                 
                 print(f"[{from_user}]: {content}")
-            except:
+                
+                # Add to message queue for API access
+                msg_obj = {
+                    'from': from_user,
+                    'from_peer_id': peer_id,
+                    'message': content,
+                    'type': msg_type,
+                    'channel': channel,
+                    'timestamp': datetime.datetime.now().isoformat()
+                }
+                message_queue.put(msg_obj)
+                
+                # Add to chat history
+                chat_id = channel if channel else peer_id
+                if chat_id not in chat_history:
+                    chat_history[chat_id] = []
+                chat_history[chat_id].append(msg_obj)
+                
+            except Exception as e:
+                print(f"[Peer] Error parsing message: {e}")
                 print(f"[Peer] Raw message: {message}")
     
     except Exception as e:
@@ -155,6 +183,36 @@ def handle_peer_messages(sock, peer_id):
         if peer_id in connected_peers:
             del connected_peers[peer_id]
         sock.close()
+
+# def handle_peer_messages(sock, peer_id):
+#     """Receive and handle messages from a connected peer"""
+#     try:
+#         while True:
+#             data = sock.recv(4096)
+#             if not data:
+#                 break
+            
+#             message = data.decode('utf-8')
+#             print(f"\n[Peer] Message from {peer_id}: {message}")
+            
+#             # Parse message (assume JSON format)
+#             try:
+#                 msg_data = json.loads(message)
+#                 msg_type = msg_data.get('type', 'chat')
+#                 from_user = msg_data.get('from', 'Unknown')
+#                 content = msg_data.get('message', '')
+                
+#                 print(f"[{from_user}]: {content}")
+#             except:
+#                 print(f"[Peer] Raw message: {message}")
+    
+#     except Exception as e:
+#         print(f"[Peer] Connection closed with {peer_id}: {e}")
+#     finally:
+#         # Remove from connected peers
+#         if peer_id in connected_peers:
+#             del connected_peers[peer_id]
+#         sock.close()
 
 def send_to_peer(peer_id, message):
     """Send message to a specific connected peer"""
@@ -177,6 +235,21 @@ def send_to_peer(peer_id, message):
         sock.sendall(msg_str.encode('utf-8'))
         
         print(f"[Peer] Sent to {peer_id}: {message}")
+
+        ########################add here to fix###############
+        msg_obj = {
+            'from': my_username,
+            'from_peer_id': f"{my_ip}:{my_p2p_port}",
+            'message': message,
+            'type': 'direct',
+            'timestamp': datetime.datetime.now().isoformat()
+        }
+        chat_id = peer_id
+        if chat_id not in chat_history:
+            chat_history[chat_id] = []
+        chat_history[chat_id].append(msg_obj)
+        message_queue.put(msg_obj)
+        #####################################################
         return True
         
     except Exception as e:
@@ -202,6 +275,16 @@ def broadcast_message(message):
             print(f"[Peer] Failed to broadcast to {peer_id}: {e}")
     
     print(f"[Peer] Broadcast to {success_count}/{len(connected_peers)} peers")
+    ##############################Add here to fix ######################
+    msg_obj = {
+    'from': my_username,
+    'message': message,
+    'type': 'broadcast',
+    'timestamp': datetime.datetime.now().isoformat()
+    }   
+    chat_history['broadcast'] = chat_history.get('broadcast', []) + [msg_obj]
+    message_queue.put(msg_obj)
+    #####################################################################
     return success_count
 
 def start_p2p_server():
@@ -451,6 +534,16 @@ def broadcast_to_channel(channel_name, message):
                     print(f"[Peer] Failed to send to {peer_id}: {e}")
         
         print(f"[Peer] Broadcast to {success_count}/{len(members)-1} members in {channel_name}")
+        #####################Add here to fix ######################
+        msg_obj = {
+        'from': my_username,
+        'message': message,
+        'type': 'broadcast',
+        'timestamp': datetime.datetime.now().isoformat()
+        }
+        chat_history['broadcast'] = chat_history.get('broadcast', []) + [msg_obj]
+        message_queue.put(msg_obj)
+        ###################################################################
         return success_count
         
     except Exception as e:
@@ -602,6 +695,109 @@ def send_http_request(method, path, data=None):
     s.close()
     return response_data.decode('utf-8')
 
+########################### Chat #############################
+@app.route('/get-messages', methods=['GET'])
+def api_get_messages(headers, body):
+    """Get new messages from queue (polling endpoint)"""
+    messages = []
+    
+    # Get all messages from queue (non-blocking)
+    while not message_queue.empty():
+        try:
+            msg = message_queue.get_nowait()
+            messages.append(msg)
+        except queue.Empty:
+            break
+    
+    return {
+        "success": True,
+        "messages": messages,
+        "count": len(messages)
+    }
+
+@app.route('/get-chat-history', methods=['POST'])
+def api_get_chat_history(headers, body):
+    """Get chat history for a specific chat (channel or peer)"""
+    chat_id = body.get('chat_id')  # channel name or peer_id
+    limit = body.get('limit', 50)  # Default 50 messages
+    
+    if not chat_id:
+        return {"success": False, "message": "Missing chat_id"}
+    
+    history = chat_history.get(chat_id, [])
+    
+    # Return last N messages
+    recent_messages = history[-limit:] if len(history) > limit else history
+    
+    return {
+        "success": True,
+        "chat_id": chat_id,
+        "messages": recent_messages,
+        "total": len(history)
+    }
+
+@app.route('/clear-history', methods=['POST'])
+def api_clear_history(headers, body):
+    """Clear chat history for a specific chat"""
+    chat_id = body.get('chat_id')
+    
+    if not chat_id:
+        return {"success": False, "message": "Missing chat_id"}
+    
+    if chat_id in chat_history:
+        chat_history[chat_id] = []
+    
+    return {
+        "success": True,
+        "message": f"History cleared for {chat_id}"
+    }
+
+@app.route('/get-all-chats', methods=['GET'])
+def api_get_all_chats(headers, body):
+    """Get list of all active chats"""
+    chats = []
+    
+    # Add channels
+    for channel in my_channels:
+        chats.append({
+            "id": channel,
+            "type": "channel",
+            "name": channel,
+            "unread": 0  # Could implement unread count
+        })
+    
+    # Add direct chats (peers we have history with)
+    for chat_id in chat_history.keys():
+        if chat_id not in my_channels:  # It's a peer
+            peer_info = peers_info.get(chat_id, {})
+            chats.append({
+                "id": chat_id,
+                "type": "direct",
+                "name": peer_info.get('username', chat_id),
+                "unread": 0
+            })
+    
+    return {
+        "success": True,
+        "chats": chats
+    }
+
+@app.route('/get-status', methods=['GET'])
+def api_get_status(headers, body):
+    """Get peer status and info"""
+    return {
+        "success": True,
+        "username": my_username,
+        "peer_id": f"{my_ip}:{my_p2p_port}",
+        "api_port": args.server_port if 'args' in globals() else PORT,
+        "p2p_port": my_p2p_port,
+        "channels": my_channels,
+        "connected_peers": list(connected_peers.keys()),
+        "online": True
+    }
+
+
+##############################################################
 
 if __name__ == "__main__":
     # ... parse args ...
