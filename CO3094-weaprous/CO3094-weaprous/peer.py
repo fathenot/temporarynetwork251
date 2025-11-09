@@ -158,16 +158,26 @@ def handle_peer_messages(sock, peer_id):
                 # Add to message queue for API access
                 msg_obj = {
                     'from': from_user,
-                    'from_peer_id': peer_id,
+                    'from_peer_id': msg_data.get('from_peer_id', peer_id),
+                    'to_peer_id': msg_data.get('to_peer_id'),
                     'message': content,
                     'type': msg_type,
                     'channel': channel,
                     'timestamp': datetime.datetime.now().isoformat()
                 }
+
                 message_queue.put(msg_obj)
                 
                 # Add to chat history
-                chat_id = channel if channel else peer_id
+                if channel:
+                    chat_id = channel
+                else:
+                    # Nếu mình là người nhận thì chat_id = from_peer_id
+                    # Nếu mình là người gửi thì chat_id = to_peer_id
+                    if msg_data.get('from_peer_id') == f"{my_ip}:{my_p2p_port}":
+                        chat_id = msg_data.get('to_peer_id')
+                    else:
+                        chat_id = msg_data.get('from_peer_id')
                 if chat_id not in chat_history:
                     chat_history[chat_id] = []
                 chat_history[chat_id].append(msg_obj)
@@ -214,6 +224,48 @@ def handle_peer_messages(sock, peer_id):
 #             del connected_peers[peer_id]
 #         sock.close()
 
+# def send_to_peer(peer_id, message):
+#     """Send message to a specific connected peer"""
+#     try:
+#         if peer_id not in connected_peers:
+#             print(f"[Peer] Not connected to {peer_id}")
+#             return False
+        
+#         sock = connected_peers[peer_id]
+        
+#         # Create message format
+#         msg_data = {
+#             "type": "direct",
+#             "from": my_username,
+#             "from_peer_id": f"{my_ip}:{my_p2p_port}",
+#             "to_peer_id": peer_id,
+#             "message": message
+#         }
+        
+#         msg_str = json.dumps(msg_data)
+#         sock.sendall(msg_str.encode('utf-8'))
+        
+#         print(f"[Peer] Sent to {peer_id}: {message}")
+
+#         ########################add here to fix###############
+#         msg_obj = {
+#             'from': my_username,
+#             'from_peer_id': f"{my_ip}:{my_p2p_port}",
+#             'message': message,
+#             'type': 'direct',
+#             'timestamp': datetime.datetime.now().isoformat()
+#         }
+#         chat_id = peer_id
+#         if chat_id not in chat_history:
+#             chat_history[chat_id] = []
+#         chat_history[chat_id].append(msg_obj)
+#         message_queue.put(msg_obj)
+#         #####################################################
+#         return True
+        
+#     except Exception as e:
+#         print(f"[Peer] Failed to send to {peer_id}: {e}")
+#         return False
 def send_to_peer(peer_id, message):
     """Send message to a specific connected peer"""
     try:
@@ -223,23 +275,26 @@ def send_to_peer(peer_id, message):
         
         sock = connected_peers[peer_id]
         
-        # Create message format
+        # Create message format with both from_peer_id and to_peer_id
         msg_data = {
             "type": "direct",
             "from": my_username,
-            "to": peer_id,
+            "from_peer_id": f"{my_ip}:{my_p2p_port}",
+            "to_peer_id": peer_id,
             "message": message
         }
+
         
         msg_str = json.dumps(msg_data)
         sock.sendall(msg_str.encode('utf-8'))
         
         print(f"[Peer] Sent to {peer_id}: {message}")
 
-        ########################add here to fix###############
+        # Save to local history and queue
         msg_obj = {
             'from': my_username,
             'from_peer_id': f"{my_ip}:{my_p2p_port}",
+            'to_peer_id': peer_id,
             'message': message,
             'type': 'direct',
             'timestamp': datetime.datetime.now().isoformat()
@@ -248,13 +303,14 @@ def send_to_peer(peer_id, message):
         if chat_id not in chat_history:
             chat_history[chat_id] = []
         chat_history[chat_id].append(msg_obj)
-        message_queue.put(msg_obj)
-        #####################################################
+        #message_queue.put(msg_obj)       ######hereeeeeeeeeeeeeeeeeeeee
+
         return True
         
     except Exception as e:
         print(f"[Peer] Failed to send to {peer_id}: {e}")
         return False
+
     
 def broadcast_message(message):
     """Broadcast message to all connected peers"""
@@ -536,13 +592,21 @@ def broadcast_to_channel(channel_name, message):
         print(f"[Peer] Broadcast to {success_count}/{len(members)-1} members in {channel_name}")
         #####################Add here to fix ######################
         msg_obj = {
-        'from': my_username,
-        'message': message,
-        'type': 'broadcast',
-        'timestamp': datetime.datetime.now().isoformat()
+            'from': my_username,
+            'message': message,
+            'type': 'channel',
+            'channel': channel_name,
+            'timestamp': datetime.datetime.now().isoformat()
         }
-        chat_history['broadcast'] = chat_history.get('broadcast', []) + [msg_obj]
-        message_queue.put(msg_obj)
+
+        # Lưu đúng theo tên channel
+        if channel_name not in chat_history:
+            chat_history[channel_name] = []
+        chat_history[channel_name].append(msg_obj)
+
+        # Đưa vào queue để API trả về cho UI
+        #message_queue.put(msg_obj)    ############hereeeeeeeeeeeeeeeeee
+
         ###################################################################
         return success_count
         
