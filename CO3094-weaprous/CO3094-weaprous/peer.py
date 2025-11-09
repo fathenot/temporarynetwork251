@@ -41,7 +41,7 @@ P2P_PORT = 5000
 app = WeApRous()
 
 tracker_ip = '127.0.0.1'
-tracker_port = '8080'
+tracker_port = '8000'
 
 # Peer info
 my_ip = '127.0.0.1'
@@ -52,6 +52,8 @@ connected_peers = {}
 # Peer info: {peer_id: {"ip": ..., "port": ..., "username": ...}}
 peers_info = {}
 
+my_channels = []  # List of channels this peer joined
+current_channel = None  # Current active channel
 
 def register_to_tracker():
     """Register this peer to tracker server"""
@@ -73,17 +75,14 @@ def get_peers_from_tracker():
     """Get list of all peers from tracker"""
     try:
         response = send_http_request('GET', '/get-list', None)
-        # Parse JSON from response body
         body_start = response.find('\r\n\r\n') + 4
         body = response[body_start:]
         data = json.loads(body)
         
-        peers = data.get('peers', [])
+        peers = data.get('peers', [])  # FIX: 'peers' not 'peer'
         print(f"[Peer] Got {len(peers)} peers from tracker")
         
-        # Update peers_info
         for peer in peers:
-            # Skip self
             if peer['ip'] == my_ip and peer['port'] == my_p2p_port:
                 continue
             peer_id = f"{peer['ip']}:{peer['port']}"
@@ -126,6 +125,7 @@ def connect_to_peer(peer_ip, peer_port):
         print(f"[Peer] Failed to connect to {peer_ip}:{peer_port} - {e}")
         return False
     
+
 def handle_peer_messages(sock, peer_id):
     """Receive and handle messages from a connected peer"""
     try:
@@ -316,6 +316,250 @@ def send_message(headers, body):
     
     except Exception as e:
         return {"success": False, "message": str(e)}
+    
+####################### Channel Management ###########################
+def join_channel(channel_name):
+    """Join a channel via tracker"""
+    global my_channels, current_channel
+    
+    try:
+        peer_id = f"{my_ip}:{my_p2p_port}"
+        data = {
+            "channel": channel_name,
+            "peer_id": peer_id,
+            "username": my_username
+        }
+        
+        print(f"[Peer] Joining channel: {channel_name}")
+        response = send_http_request('POST', '/join-channel', data)
+        
+        # Parse response
+        body_start = response.find('\r\n\r\n') + 4
+        body = response[body_start:]
+        result = json.loads(body)
+        
+        if result.get('success', False):
+            if channel_name not in my_channels:
+                my_channels.append(channel_name)
+            current_channel = channel_name
+            print(f"[Peer] Joined channel: {channel_name}")
+            return True
+        else:
+            print(f"[Peer] Failed to join: {result.get('message')}")
+            return False
+            
+    except Exception as e:
+        print(f"[Peer] Join channel error: {e}")
+        return False
+
+def leave_channel(channel_name):
+    """Leave a channel"""
+    global my_channels, current_channel
+    
+    try:
+        peer_id = f"{my_ip}:{my_p2p_port}"
+        data = {
+            "channel": channel_name,
+            "peer_id": peer_id
+        }
+        
+        response = send_http_request('POST', '/leave-channel', data)
+        
+        body_start = response.find('\r\n\r\n') + 4
+        body = response[body_start:]
+        result = json.loads(body)
+        
+        if result.get('success', False):
+            if channel_name in my_channels:
+                my_channels.remove(channel_name)
+            if current_channel == channel_name:
+                current_channel = None
+            print(f"[Peer] Left channel: {channel_name}")
+            return True
+        else:
+            print(f"[Peer] Failed to leave: {result.get('message')}")
+            return False
+            
+    except Exception as e:
+        print(f"[Peer] Leave channel error: {e}")
+        return False
+
+def get_channel_members(channel_name):
+    """Get members of a channel from tracker"""
+    try:
+        data = {"channel": channel_name}
+        response = send_http_request('POST', '/get-channel-members', data)
+        
+        body_start = response.find('\r\n\r\n') + 4
+        body = response[body_start:]
+        result = json.loads(body)
+        
+        if result.get('success', False):
+            members = result.get('members', [])
+            print(f"[Peer] Channel {channel_name} has {len(members)} members")
+            return members
+        else:
+            print(f"[Peer] Failed to get members: {result.get('message')}")
+            return []
+            
+    except Exception as e:
+        print(f"[Peer] Get members error: {e}")
+        return []
+
+def broadcast_to_channel(channel_name, message):
+    """Broadcast message to all members of a channel"""
+    try:
+        # Get channel members
+        members = get_channel_members(channel_name)
+        
+        if not members:
+            print(f"[Peer] No members in channel {channel_name}")
+            return 0
+        
+        # Create message
+        msg_data = {
+            "type": "channel",
+            "from": my_username,
+            "channel": channel_name,
+            "message": message
+        }
+        
+        msg_str = json.dumps(msg_data)
+        success_count = 0
+        
+        # Send to each member
+        for member in members:
+            peer_id = member["peer_id"]
+            
+            # Skip self
+            if peer_id == f"{my_ip}:{my_p2p_port}":
+                continue
+            
+            # Connect if not connected
+            if peer_id not in connected_peers:
+                peer_ip, peer_port = peer_id.split(':')
+                connect_to_peer(peer_ip, peer_port)
+                time.sleep(0.5)
+            
+            # Send message
+            if peer_id in connected_peers:
+                try:
+                    sock = connected_peers[peer_id]
+                    sock.sendall(msg_str.encode('utf-8'))
+                    success_count += 1
+                except Exception as e:
+                    print(f"[Peer] Failed to send to {peer_id}: {e}")
+        
+        print(f"[Peer] Broadcast to {success_count}/{len(members)-1} members in {channel_name}")
+        return success_count
+        
+    except Exception as e:
+        print(f"[Peer] Broadcast error: {e}")
+        return 0
+
+
+#########################API########################
+
+
+    ########################API Channel Management################
+@app.route('/join-channel', methods=['POST'])
+def api_join_channel(headers, body):
+    """Join channel API"""
+    try:
+        channel_name = body.get('channel')
+        
+        if not channel_name:
+            return {"success": False, "message": "Missing channel name"}
+        
+        success = join_channel(channel_name)
+        
+        if success:
+            return {
+                "success": True,
+                "message": f"Joined {channel_name}",
+                "channels": my_channels
+            }
+        else:
+            return {"success": False, "message": "Failed to join"}
+    
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@app.route('/leave-channel', methods=['POST'])
+def api_leave_channel(headers, body):
+    """Leave channel API"""
+    try:
+        channel_name = body.get('channel')
+        
+        if not channel_name:
+            return {"success": False, "message": "Missing channel name"}
+        
+        success = leave_channel(channel_name)
+        
+        if success:
+            return {
+                "success": True,
+                "message": f"Left {channel_name}",
+                "channels": my_channels
+            }
+        else:
+            return {"success": False, "message": "Failed to leave"}
+    
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@app.route('/send-channel', methods=['POST'])
+def api_send_channel(headers, body):
+    """Send message to channel"""
+    try:
+        channel_name = body.get('channel')
+        message = body.get('message', '')
+        
+        if not channel_name or not message:
+            return {"success": False, "message": "Missing channel or message"}
+        
+        # Check if member of channel
+        if channel_name not in my_channels:
+            return {"success": False, "message": "Not a member of this channel"}
+        
+        count = broadcast_to_channel(channel_name, message)
+        
+        return {
+            "success": True,
+            "message": f"Sent to {count} members",
+            "sent_count": count
+        }
+    
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@app.route('/my-channels', methods=['GET'])
+def api_my_channels(headers, body):
+    """Get list of channels this peer joined"""
+    return {
+        "success": True,
+        "channels": my_channels,
+        "current": current_channel
+    }
+
+@app.route('/list-channels', methods=['GET'])
+def api_list_channels(headers, body):
+    """Get all available channels from tracker"""
+    try:
+        response = send_http_request('GET', '/get-channels', None)
+        
+        body_start = response.find('\r\n\r\n') + 4
+        body_text = response[body_start:]
+        result = json.loads(body_text)
+        
+        return result
+        
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+
+    ###################################################################
 
 def send_http_request(method, path, data=None):
     """Send HTTP request to tracker"""
