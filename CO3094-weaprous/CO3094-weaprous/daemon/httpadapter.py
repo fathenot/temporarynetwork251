@@ -105,7 +105,7 @@ class HttpAdapter:
         # Handle the request
         msg = conn.recv(1024).decode()
         req.prepare(msg, routes)
-
+        response = None
         # Handle request hook
         if req.hook:
             print("[HttpAdapter] hook in route-path METHOD {} PATH {}".format(req.hook._route_path,req.hook._route_methods))
@@ -183,14 +183,16 @@ class HttpAdapter:
                 # Cookie is valid - serve the requested page
                 resp.status_code = 200
                 response = resp.build_response(req)
+                
             else:
                 print("[HttpAdapter] Auth cookie missing/invalid - Unauthorized")
                 
                 # No valid auth cookie - return 401
                 response = resp.build_unauthorized()
         # Build response
-        # else: 
-        #     response = resp.build_response(req)
+        if response is None:
+            response = resp.build_response(req)
+        
 
         #print(response)
         conn.sendall(response)
